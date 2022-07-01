@@ -1,5 +1,5 @@
 const { AuthenticationError } = require('apollo-server-express');
-const { User, Thought } = require('../models');
+const { User, Book } = require('../models');
 const { signToken } = require('../utils/auth');
 
 const resolvers = {
@@ -19,12 +19,7 @@ const resolvers = {
   },
 
   Mutation: {
-    addUser: async (parent, args) => {
-      const user = await User.create(args);
-      const token = signToken(user);
 
-      return { token, user };
-    },
     login: async (parent, { email, password }) => {
       const user = await User.findOne({ email });
       if (!user) {
@@ -37,47 +32,35 @@ const resolvers = {
       const token = signToken(user);
       return { token, user };
     },
-    addThought: async (parent, args, context) => {
-      if (context.user) {
-        const thought = await Thought.create({ ...args, username: context.user.username });
-
-        await User.findByIdAndUpdate(
-          { _id: context.user._id },
-          { $push: { thoughts: thought._id } },
-          { new: true }
-        );
-
-        return thought;
-      }
-
-      throw new AuthenticationError('You need to be logged in!');
+    addUser: async (parent, args) => {
+      const user = await User.create(args);
+      const token = signToken(user);
+      return { token, user };
     },
-    addReaction: async (parent, { thoughtId, reactionBody }, context) => {
+    saveBook: async (parent, args, context) => {
+      console.log(args);
       if (context.user) {
-        const updatedThought = await Thought.findOneAndUpdate(
-          { _id: thoughtId },
-          { $push: { reactions: { reactionBody, username: context.user.username } } },
+        const userData = await User.findOneAndUpdate(
+          { _id: context.user._id },
+          { $addToSet: { savedBooks: args } },
           { new: true, runValidators: true }
         );
-
-        return updatedThought;
+        return userData;
       }
-
-      throw new AuthenticationError('You need to be logged in!');
+      throw new AuthenticationError('you need to be logged in to save books');
     },
-    addFriend: async (parent, { friendId }, context) => {
+    removeBook: async (parent, { bookId }, context) => {
+      console.log(bookId);
       if (context.user) {
-        const updatedUser = await User.findOneAndUpdate(
+        const userData = await User.findOneAndUpdate(
           { _id: context.user._id },
-          { $addToSet: { friends: friendId } },
+          { $pull: { savedBooks: { bookId: bookId } } },
           { new: true }
-        ).populate('friends');
-
-        return updatedUser;
+        );
+        return userData;
       }
-
-      throw new AuthenticationError('You need to be logged in!');
-    }
+      throw new AuthenticationError('you need to be logged');
+    },
   }
 };
 
